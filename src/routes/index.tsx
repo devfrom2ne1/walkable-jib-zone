@@ -53,7 +53,7 @@ function Home() {
     <MobileFrame>
       {/* Brand */}
       <div className="px-5 pt-14 pb-4">
-        <div className="text-[15px] font-bold tracking-tight">집의기준</div>
+        <div className="text-[15px] font-bold tracking-tight">집세권</div>
         <div className="text-[12px] text-muted-foreground mt-0.5">집값보다 생활을 기준으로.</div>
       </div>
 
