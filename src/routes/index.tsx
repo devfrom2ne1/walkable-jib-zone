@@ -7,12 +7,12 @@ import { BottomNav } from "@/components/BottomNav";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "집의기준 · 집값보다 생활을 기준으로" },
+      { title: "집세권 · 집값보다 생활을 기준으로" },
       {
         name: "description",
         content: "아파트명이나 주소를 입력하면 주변 생활시설까지 도보 시간을 분석해드려요.",
       },
-      { property: "og:title", content: "집의기준 · 집값보다 생활을 기준으로" },
+      { property: "og:title", content: "집세권 · 집값보다 생활을 기준으로" },
       {
         property: "og:description",
         content: "아파트명이나 주소를 입력하면 주변 생활시설까지 도보 시간을 분석해드려요.",

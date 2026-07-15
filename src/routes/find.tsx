@@ -8,7 +8,7 @@ import { FACILITIES, WALKING_TIMES, type FacilityKey } from "@/lib/apartments-da
 export const Route = createFileRoute("/find")({
   head: () => ({
     meta: [
-      { title: "집찾기 · 조건으로 찾는 집" },
+      { title: "집세권 · 조건으로 찾는 집" },
       {
         name: "description",
         content: "원하는 시설과 도보 시간을 선택해 조건에 맞는 아파트를 찾아보세요.",
@@ -36,7 +36,7 @@ function Find() {
   return (
     <MobileFrame>
       <div className="px-5 pt-14 pb-4">
-        <div className="text-[15px] font-bold tracking-tight">집찾기</div>
+        <div className="text-[15px] font-bold tracking-tight">집세권</div>
         <div className="text-[12px] text-muted-foreground mt-0.5">
           조건에 맞는 생활권을 찾아보세요.
         </div>
