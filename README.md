@@ -1,0 +1,82 @@
+# 집세권
+
+집값뿐 아니라 일상생활에 필요한 시설까지 걸어서 얼마나 걸리는지 기준으로 아파트를 찾아보는 모바일 웹 프로토타입입니다.
+
+## 바로 보기
+
+현재 Vercel에 배포되어 있습니다.
+
+**[집세권 웹사이트 열기](https://walkable-jib-zone.vercel.app/)**
+
+## 주요 기능
+
+- 주소 또는 아파트 이름 검색
+- 원하는 도보 시간 선택
+- 지하철, 다이소, 올리브영, 대형마트 조건 선택
+- 조건에 맞는 아파트 목록과 지도 형태 결과 확인
+- 아파트별 주변 시설 및 도보 시간 확인
+
+현재 아파트와 주변 시설 정보는 실제 API나 데이터베이스가 아닌 프로젝트 내부의 샘플 데이터입니다.
+
+## 기술 구성
+
+- TypeScript
+- React 19
+- TanStack Start 및 TanStack Router
+- Vite
+- Tailwind CSS 4
+- Radix UI
+- Nitro SSR
+- Vercel
+
+## 로컬 실행
+
+Node.js 22가 필요합니다.
+
+```bash
+npm install --include=dev
+npm run dev
+```
+
+개발 서버가 실행되면 다음 주소로 접속합니다.
+
+```text
+http://127.0.0.1:8080
+```
+
+## 주요 명령
+
+```bash
+npm run dev       # 개발 서버 실행
+npm run build     # Vercel용 프로덕션 빌드
+npm run preview   # 빌드 결과 미리보기
+npm run lint      # 코드 검사
+npm run format    # 코드 자동 정리
+```
+
+## 주요 폴더
+
+```text
+src/routes/         URL별 화면
+src/components/     공통 화면 컴포넌트
+src/components/ui/  기본 UI 컴포넌트
+src/lib/            샘플 데이터와 공통 함수
+public/             favicon 등 정적 파일
+```
+
+페이지와 폴더 구조, SSR, Vercel 배포, 모바일 앱 출시 방법에 관한 자세한 설명은 [PROJECT_GUIDE.md](./PROJECT_GUIDE.md)에서 확인할 수 있습니다.
+
+## 배포
+
+이 프로젝트는 Nitro의 Vercel preset을 사용합니다.
+
+```text
+Root Directory: ./
+Framework Preset: Other
+Install Command: npm install
+Build Command: npm run build
+Output Directory: 비워두기
+Node.js Version: 22.x
+```
+
+GitHub 저장소에 변경 사항을 push하면 연결된 Vercel 프로젝트가 자동으로 다시 배포합니다.
