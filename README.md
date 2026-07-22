@@ -41,7 +41,9 @@ npm run dev
 
 주소·아파트 자동완성은 `/api/v1/addresses/search?query=` API를 호출합니다. 로컬에서는
 Vite가 이 요청을 `http://localhost:8081`로 프록시하므로 백엔드를 8081 포트에 먼저
-실행해야 합니다. 배포 환경에서 API가 다른 도메인이라면 `VITE_API_BASE_URL`을 설정하세요.
+실행해야 합니다. 운영 빌드는 `.env.production`의 `VITE_API_BASE_URL`을 사용해
+`https://jipzone-backend.onrender.com`을 호출합니다. Vercel 환경변수로 같은 키를
+설정하면 파일의 값보다 Vercel 설정이 우선합니다.
 
 선택한 아파트의 주변 시설은 `/api/apartment/facilities` API에서 가져옵니다. 아파트명,
 주소, 위도, 경도와 선택 시설을 쿼리 파라미터로 전달하며 응답의 생활권 요약, 점수와 시설별
