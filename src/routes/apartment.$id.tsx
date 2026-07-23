@@ -8,9 +8,12 @@ import {
   ShoppingBag,
   Sparkles,
   Store,
+  Train,
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
+import { apartmentFullViewQueryOptions } from "@/lib/apartment-full-view-api";
+import { FACILITIES, type FacilityKey } from "@/lib/apartments-data";
 import {
   DEFAULT_LIFE_SCORE_RADIUS_METER,
   lifeScoreQueryOptions,
@@ -54,6 +57,13 @@ const CATEGORY_CONFIG: {
   { key: "daiso", label: "다이소", Icon: ShoppingBag },
   { key: "oliveYoung", label: "올리브영", Icon: Sparkles },
 ];
+
+const FACILITY_ICON_MAP: Record<FacilityKey, typeof Store> = {
+  subway: Train,
+  daiso: ShoppingBag,
+  oliveyoung: Sparkles,
+  mart: Store,
+};
 
 function formatScore(score: number) {
   return Number.isInteger(score) ? String(score) : score.toFixed(1);
@@ -109,6 +119,15 @@ function Detail() {
       lat: latitude,
       lng: longitude,
       radiusMeter: DEFAULT_LIFE_SCORE_RADIUS_METER,
+    }),
+    enabled: hasSelection,
+  });
+  const fullViewQuery = useQuery({
+    ...apartmentFullViewQueryOptions({
+      apartmentName: apartmentName ?? "",
+      address: address ?? "",
+      lat: latitude,
+      lng: longitude,
     }),
     enabled: hasSelection,
   });
@@ -231,6 +250,70 @@ function Detail() {
               );
             })}
           </div>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="text-[18px] font-bold tracking-tight">가까운 시설까지 걸어서</h2>
+          <p className="mt-1 text-[12px] text-muted-foreground">
+            백엔드가 계산한 실제 보행 경로 기준 시간이에요.
+          </p>
+
+          {fullViewQuery.isPending && (
+            <div className="mt-4 rounded-3xl border border-border px-5 py-8 flex items-center justify-center gap-2 text-[13px] text-muted-foreground">
+              <Loader2 size={16} className="animate-spin text-primary" />
+              도보 시간을 확인하고 있어요.
+            </div>
+          )}
+
+          {fullViewQuery.isError && (
+            <div className="mt-4 rounded-3xl border border-destructive/25 bg-destructive/5 px-5 py-5 text-center">
+              <p className="text-[12px] text-muted-foreground">도보 시간을 불러오지 못했어요.</p>
+              <button
+                type="button"
+                onClick={() => fullViewQuery.refetch()}
+                className="mt-3 text-[12px] font-semibold text-primary"
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
+
+          {fullViewQuery.data && (
+            <div className="mt-4 space-y-2.5">
+              {fullViewQuery.data.facilityList.map((facility) => {
+                const Icon = FACILITY_ICON_MAP[facility.category];
+                const label =
+                  FACILITIES.find((item) => item.key === facility.category)?.label ??
+                  facility.category;
+                return (
+                  <div
+                    key={`${facility.category}-${facility.name}`}
+                    className="rounded-3xl border border-border bg-card px-5 py-4 flex items-center gap-4"
+                  >
+                    <div className="h-11 w-11 shrink-0 rounded-2xl bg-muted flex items-center justify-center">
+                      <Icon size={20} strokeWidth={1.8} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] text-muted-foreground">{label}</div>
+                      <div className="truncate text-[14px] font-semibold">{facility.name}</div>
+                    </div>
+                    <div className="shrink-0 flex items-baseline gap-1">
+                      <span className="text-[11px] text-muted-foreground">걸어서</span>
+                      <span className="text-[32px] font-bold leading-none tracking-tight">
+                        {facility.walkMinutes}
+                      </span>
+                      <span className="text-[13px] font-semibold text-muted-foreground">분</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {fullViewQuery.data.facilityList.length === 0 && (
+                <div className="rounded-3xl border border-dashed border-border px-5 py-8 text-center text-[13px] text-muted-foreground">
+                  도보 시간을 표시할 가까운 시설이 없어요.
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         <LifeScoreMap
