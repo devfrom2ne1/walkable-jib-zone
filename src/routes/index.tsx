@@ -4,6 +4,7 @@ import { Search, Building2, Loader2 } from "lucide-react";
 import { MobileFrame } from "@/components/MobileFrame";
 import { BottomNav } from "@/components/BottomNav";
 import type { AddressSearchApiResult, ApartmentSearchResult } from "@/lib/apartment-search";
+import { clearCompletedAnalysis } from "@/lib/analysis-session";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -57,7 +58,7 @@ function Home() {
     const timeout = window.setTimeout(async () => {
       try {
         const response = await fetch(
-          `${API_BASE_URL}/api/v1/addresses/search?query=${encodeURIComponent(trimmedQuery)}`,
+          `${API_BASE_URL}/api/addresses?query=${encodeURIComponent(trimmedQuery)}`,
           { signal: controller.signal },
         );
         if (!response.ok) throw new Error("검색 요청에 실패했습니다.");
@@ -101,6 +102,7 @@ function Home() {
   }, [query]);
 
   const goAnalyze = (apartment: ApartmentSearchResult) => {
+    clearCompletedAnalysis();
     navigate({
       to: "/analyze",
       search: {

@@ -10,15 +10,11 @@ export default defineConfig({
   vite: {
     server: {
       proxy: {
-        "/api/v1": {
+        "/api/addresses": {
           target: "http://localhost:8081",
           changeOrigin: true,
         },
-        "/api/apartment": {
-          target: "http://localhost:8081",
-          changeOrigin: true,
-        },
-        "/api/life-score": {
+        "/api/apartments": {
           target: "http://localhost:8081",
           changeOrigin: true,
         },

@@ -2,13 +2,14 @@ import { queryOptions } from "@tanstack/react-query";
 
 export const DEFAULT_LIFE_SCORE_RADIUS_METER = 1000;
 
-export type LifeScoreCategoryKey = "mart" | "daiso" | "oliveYoung";
+export type LifeScoreCategoryKey = "subway" | "mart" | "daiso" | "oliveYoung";
 
 export type LifeScoreStore = {
   name: string;
   grade: string;
   baseScore: number;
   distanceMeter: number;
+  walkMinutes: number;
   distanceFactor: number;
   calculatedScore: number;
   isRepresentative: boolean;
@@ -24,14 +25,24 @@ export type LifeScoreCategoryDetail = {
   stores: LifeScoreStore[];
 };
 
+export type LifeScoreSummary = {
+  subwayScore: number;
+  martScore: number;
+  daisoScore: number;
+  oliveYoungScore: number;
+};
+
+export type LifeScoreCategories = {
+  subway: LifeScoreCategoryDetail;
+  mart: LifeScoreCategoryDetail;
+  daiso: LifeScoreCategoryDetail;
+  oliveYoung: LifeScoreCategoryDetail;
+};
+
 export type LifeScoreData = {
   totalScore: number;
-  summary: {
-    martScore: number;
-    daisoScore: number;
-    oliveYoungScore: number;
-  };
-  categories: Record<LifeScoreCategoryKey, LifeScoreCategoryDetail>;
+  summary: LifeScoreSummary;
+  categories: LifeScoreCategories;
 };
 
 export type LifeScoreResponse = {
@@ -57,7 +68,7 @@ export async function fetchLifeScore(
     lng: String(request.lng),
     radiusMeter: String(request.radiusMeter ?? DEFAULT_LIFE_SCORE_RADIUS_METER),
   });
-  const response = await fetch(`${API_BASE_URL}/api/life-score?${params}`, { signal });
+  const response = await fetch(`${API_BASE_URL}/api/apartments/life-score?${params}`, { signal });
 
   if (!response.ok) {
     let message = "주거 편의성 점수를 불러오지 못했어요.";
@@ -81,6 +92,8 @@ export function lifeScoreQueryOptions(request: LifeScoreRequest) {
     queryKey: ["life-score", request.lat, request.lng, radiusMeter],
     queryFn: ({ signal }) => fetchLifeScore({ ...request, radiusMeter }, signal),
     staleTime: 5 * 60 * 1000,
-    retry: 1,
+    // A Life Score request fans out to multiple TMAP routes on the backend.
+    // Retrying the whole request immediately makes TMAP 429 rate limits worse.
+    retry: false,
   });
 }

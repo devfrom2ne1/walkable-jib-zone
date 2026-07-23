@@ -1,9 +1,14 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { MobileFrame } from "@/components/MobileFrame";
 import { BottomNav } from "@/components/BottomNav";
+import { markAnalysisCompleted, wasAnalysisCompleted } from "@/lib/analysis-session";
+import {
+  buildApartmentFacilityMapUrl,
+  preloadApartmentFacilityMap,
+} from "@/lib/apartment-facility-map";
 import { lifeScoreQueryOptions } from "@/lib/life-score-api";
 
 type Search = {
@@ -24,15 +29,21 @@ export const Route = createFileRoute("/analyze")({
     facilities: typeof s.facilities === "string" ? s.facilities : "subway,daiso,oliveyoung,mart",
     source: s.source === "find" ? "find" : "home",
   }),
+  beforeLoad: ({ search }) => {
+    if (wasAnalysisCompleted(search)) {
+      throw redirect({ to: "/", replace: true });
+    }
+  },
   component: Analyze,
 });
 
-const STEPS = ["주소 확인", "주변 시설 검색", "도보 시간 계산", "생활권 분석 완료"];
+const STEPS = ["주소 확인", "주변 시설 검색", "도보 시간·점수 확인", "지도 준비"];
 
 function Analyze() {
   const { apartmentName, address, lat, lng, facilities, source = "home" } = Route.useSearch();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [mapState, setMapState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const latitude = Number(lat);
   const longitude = Number(lng);
   const missingSelection =
@@ -43,20 +54,51 @@ function Analyze() {
   });
 
   useEffect(() => {
-    if (!isFetching || missingSelection) return;
+    if (missingSelection) return;
+
+    let cancelled = false;
+    const mapImageUrl = buildApartmentFacilityMapUrl({
+      apartmentName,
+      address,
+      lat: latitude,
+      lng: longitude,
+      width: 640,
+      height: 480,
+    });
+    setMapState("loading");
+    preloadApartmentFacilityMap(mapImageUrl).then(
+      () => {
+        if (!cancelled) setMapState("ready");
+      },
+      () => {
+        if (!cancelled) setMapState("error");
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, apartmentName, latitude, longitude, missingSelection]);
+
+  const isPreparing = isFetching || mapState === "idle" || mapState === "loading";
+
+  useEffect(() => {
+    if (!isPreparing || missingSelection) return;
     const interval = window.setInterval(() => {
       setStep((current) => Math.min(current + 1, STEPS.length - 1));
     }, 550);
     return () => window.clearInterval(interval);
-  }, [isFetching, missingSelection]);
+  }, [isPreparing, missingSelection]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || mapState === "idle" || mapState === "loading") return;
     setStep(STEPS.length);
     const timeout = window.setTimeout(() => {
+      markAnalysisCompleted({ apartmentName, address, lat, lng });
       navigate({
         to: "/apartment/$id",
         params: { id: "selected" },
+        replace: true,
         search: {
           minutes: 15,
           facilities,
@@ -65,11 +107,12 @@ function Analyze() {
           address,
           lat,
           lng,
+          mapReady: mapState === "ready",
         },
       });
     }, 450);
     return () => window.clearTimeout(timeout);
-  }, [address, apartmentName, data, facilities, lat, lng, navigate, source]);
+  }, [address, apartmentName, data, facilities, lat, lng, mapState, navigate, source]);
 
   return (
     <MobileFrame>
@@ -81,7 +124,7 @@ function Analyze() {
           생활권을 분석하고 있어요
         </h1>
         <p className="mt-3 text-[14px] text-muted-foreground leading-relaxed">
-          주변 마트, 다이소, 올리브영의
+          주변 지하철, 마트, 다이소, 올리브영의
           <br />
           거리와 접근성 점수를 확인 중입니다.
         </p>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -12,8 +13,10 @@ import {
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
-import { apartmentFullViewQueryOptions } from "@/lib/apartment-full-view-api";
-import { FACILITIES, type FacilityKey } from "@/lib/apartments-data";
+import {
+  buildApartmentFacilityMapUrl,
+  isApartmentFacilityMapPreloaded,
+} from "@/lib/apartment-facility-map";
 import {
   DEFAULT_LIFE_SCORE_RADIUS_METER,
   lifeScoreQueryOptions,
@@ -31,6 +34,7 @@ type Search = {
   address?: string;
   lat?: string;
   lng?: string;
+  mapReady?: boolean;
 };
 
 export const Route = createFileRoute("/apartment/$id")({
@@ -44,6 +48,7 @@ export const Route = createFileRoute("/apartment/$id")({
     address: typeof search.address === "string" ? search.address : undefined,
     lat: typeof search.lat === "string" ? search.lat : undefined,
     lng: typeof search.lng === "string" ? search.lng : undefined,
+    mapReady: search.mapReady === true || search.mapReady === "true",
   }),
   component: Detail,
 });
@@ -53,21 +58,11 @@ const CATEGORY_CONFIG: {
   label: string;
   Icon: typeof Store;
 }[] = [
+  { key: "subway", label: "지하철", Icon: Train },
   { key: "mart", label: "마트", Icon: Store },
   { key: "daiso", label: "다이소", Icon: ShoppingBag },
   { key: "oliveYoung", label: "올리브영", Icon: Sparkles },
 ];
-
-const FACILITY_ICON_MAP: Record<FacilityKey, typeof Store> = {
-  subway: Train,
-  daiso: ShoppingBag,
-  oliveyoung: Sparkles,
-  mart: Store,
-};
-
-function formatScore(score: number) {
-  return Number.isInteger(score) ? String(score) : score.toFixed(1);
-}
 
 function getDistanceTone(distanceMeter: number) {
   if (distanceMeter <= 300) {
@@ -108,6 +103,7 @@ function Detail() {
     address,
     lat,
     lng,
+    mapReady = false,
   } = Route.useSearch();
   const latitude = Number(lat);
   const longitude = Number(lng);
@@ -119,15 +115,6 @@ function Detail() {
       lat: latitude,
       lng: longitude,
       radiusMeter: DEFAULT_LIFE_SCORE_RADIUS_METER,
-    }),
-    enabled: hasSelection,
-  });
-  const fullViewQuery = useQuery({
-    ...apartmentFullViewQueryOptions({
-      apartmentName: apartmentName ?? "",
-      address: address ?? "",
-      lat: latitude,
-      lng: longitude,
     }),
     enabled: hasSelection,
   });
@@ -176,10 +163,8 @@ function Detail() {
   }
 
   const score = scoreQuery.data;
-  const allStores = CATEGORY_CONFIG.flatMap(({ key }) =>
-    score.categories[key].stores.map((store) => ({ key, store })),
-  );
   const summaryScores: Record<LifeScoreCategoryKey, number> = {
+    subway: score.summary.subwayScore,
     mart: score.summary.martScore,
     daiso: score.summary.daisoScore,
     oliveYoung: score.summary.oliveYoungScore,
@@ -218,12 +203,12 @@ function Detail() {
               주거 편의성 총점
             </div>
             <p className="mt-1 text-[11px] text-accent-foreground/70">
-              마트·다이소·올리브영 접근성을 반영했어요.
+              지하철·마트·다이소·올리브영 접근성을 반영했어요.
             </p>
           </div>
           <div className="shrink-0 text-right">
             <div className="text-[34px] font-bold leading-none text-accent-foreground">
-              {formatScore(score.totalScore)}
+              {score.totalScore}
               <span className="text-[13px] font-semibold ml-0.5">점</span>
             </div>
           </div>
@@ -231,7 +216,10 @@ function Detail() {
 
         <section className="mt-8">
           <h2 className="text-[18px] font-bold tracking-tight">카테고리별 점수</h2>
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <p className="mt-1 text-[12px] text-muted-foreground">
+            집세권에서 분석한 대표 시설의 카테고리 별 점수예요.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
             {CATEGORY_CONFIG.map(({ key, label, Icon }) => {
               const category = score.categories[key];
               return (
@@ -240,10 +228,10 @@ function Detail() {
                   <div className="mt-2 text-[11px] text-muted-foreground">{label}</div>
                   <div className="mt-0.5 flex items-baseline gap-0.5">
                     <span className="text-[22px] font-bold tracking-tight">
-                      {formatScore(summaryScores[key])}
+                      {summaryScores[key]}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      / {formatScore(category.maxScore)}
+                      / {category.maxScore}
                     </span>
                   </div>
                 </div>
@@ -253,74 +241,51 @@ function Detail() {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-[18px] font-bold tracking-tight">가까운 시설까지 걸어서</h2>
+          <h2 className="text-[18px] font-bold tracking-tight">대표 시설까지 걸어서</h2>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            백엔드가 계산한 실제 보행 경로 기준 시간이에요.
+            집세권이 분석한 대표 시설의 실제 보행 시간이에요.
           </p>
-
-          {fullViewQuery.isPending && (
-            <div className="mt-4 rounded-3xl border border-border px-5 py-8 flex items-center justify-center gap-2 text-[13px] text-muted-foreground">
-              <Loader2 size={16} className="animate-spin text-primary" />
-              도보 시간을 확인하고 있어요.
-            </div>
-          )}
-
-          {fullViewQuery.isError && (
-            <div className="mt-4 rounded-3xl border border-destructive/25 bg-destructive/5 px-5 py-5 text-center">
-              <p className="text-[12px] text-muted-foreground">도보 시간을 불러오지 못했어요.</p>
-              <button
-                type="button"
-                onClick={() => fullViewQuery.refetch()}
-                className="mt-3 text-[12px] font-semibold text-primary"
-              >
-                다시 시도
-              </button>
-            </div>
-          )}
-
-          {fullViewQuery.data && (
-            <div className="mt-4 space-y-2.5">
-              {fullViewQuery.data.facilityList.map((facility) => {
-                const Icon = FACILITY_ICON_MAP[facility.category];
-                const label =
-                  FACILITIES.find((item) => item.key === facility.category)?.label ??
-                  facility.category;
-                return (
-                  <div
-                    key={`${facility.category}-${facility.name}`}
-                    className="rounded-3xl border border-border bg-card px-5 py-4 flex items-center gap-4"
-                  >
-                    <div className="h-11 w-11 shrink-0 rounded-2xl bg-muted flex items-center justify-center">
-                      <Icon size={20} strokeWidth={1.8} />
+          <div className="mt-4 space-y-2.5">
+            {CATEGORY_CONFIG.map(({ key, label, Icon }) => {
+              const representative = score.categories[key].stores.find(
+                (store) => store.isRepresentative,
+              );
+              return (
+                <div
+                  key={key}
+                  className="rounded-3xl border border-border bg-card px-5 py-4 flex items-center gap-4"
+                >
+                  <div className="h-11 w-11 shrink-0 rounded-2xl bg-muted flex items-center justify-center">
+                    <Icon size={20} strokeWidth={1.8} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] text-muted-foreground">{label}</div>
+                    <div className="truncate text-[14px] font-semibold">
+                      {representative?.name ?? "도보 15분 이내 시설 없음"}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-muted-foreground">{label}</div>
-                      <div className="truncate text-[14px] font-semibold">{facility.name}</div>
-                    </div>
+                  </div>
+                  {representative && (
                     <div className="shrink-0 flex items-baseline gap-1">
                       <span className="text-[11px] text-muted-foreground">걸어서</span>
                       <span className="text-[32px] font-bold leading-none tracking-tight">
-                        {facility.walkMinutes}
+                        {representative.walkMinutes}
                       </span>
                       <span className="text-[13px] font-semibold text-muted-foreground">분</span>
                     </div>
-                  </div>
-                );
-              })}
-              {fullViewQuery.data.facilityList.length === 0 && (
-                <div className="rounded-3xl border border-dashed border-border px-5 py-8 text-center text-[13px] text-muted-foreground">
-                  도보 시간을 표시할 가까운 시설이 없어요.
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </section>
 
-        <LifeScoreMap
+        <FacilityMapImage
+          key={`${latitude}-${longitude}`}
           apartmentName={apartmentName}
-          centerLat={latitude}
-          centerLng={longitude}
-          stores={allStores}
+          address={address}
+          lat={latitude}
+          lng={longitude}
+          wasPreloaded={mapReady}
         />
 
         <section className="mt-8 space-y-5">
@@ -366,6 +331,9 @@ function CategoryCard({
   Icon: typeof Store;
   detail: LifeScoreCategoryDetail;
 }) {
+  const representative = detail.stores.find((store) => store.isRepresentative);
+  const otherStores = detail.stores.filter((store) => !store.isRepresentative);
+
   return (
     <article className="rounded-3xl border border-border bg-card p-5">
       <div className="flex items-center gap-3">
@@ -375,7 +343,7 @@ function CategoryCard({
         <div>
           <h3 className="text-[15px] font-bold">{label}</h3>
           <p className="text-[11px] text-muted-foreground">
-            {formatScore(detail.categoryScore)} / {formatScore(detail.maxScore)}점
+            {detail.categoryScore} / {detail.maxScore}점
           </p>
         </div>
       </div>
@@ -383,16 +351,28 @@ function CategoryCard({
         {detail.evaluationSummary}
       </p>
 
-      {detail.stores.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-border px-4 py-6 text-center text-[12px] text-muted-foreground">
-          반경 내 검색된 매장이 없습니다.
+      <div className="mt-4 text-[11px] font-semibold text-muted-foreground">대표 시설</div>
+      {representative ? (
+        <div className="mt-2">
+          <StoreRow store={representative} />
         </div>
       ) : (
-        <div className="mt-4 space-y-2.5">
-          {detail.stores.map((store) => (
-            <StoreRow key={`${store.name}-${store.latitude}-${store.longitude}`} store={store} />
-          ))}
+        <div className="mt-4 rounded-2xl border border-dashed border-border px-4 py-6 text-center text-[12px] text-muted-foreground">
+          도보 15분 이내 시설 없음
         </div>
+      )}
+
+      {otherStores.length > 0 && (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-[11px] font-semibold text-muted-foreground">
+            기타 검색 시설 {otherStores.length}곳
+          </summary>
+          <div className="mt-3 space-y-2.5">
+            {otherStores.map((store) => (
+              <StoreRow key={`${store.name}-${store.latitude}-${store.longitude}`} store={store} />
+            ))}
+          </div>
+        </details>
       )}
     </article>
   );
@@ -408,7 +388,7 @@ function StoreRow({ store }: { store: LifeScoreStore }) {
             <span className="text-[13px] font-semibold">{store.name}</span>
             {store.isRepresentative && (
               <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold text-primary-foreground">
-                대표 매장
+                대표 시설
               </span>
             )}
           </div>
@@ -420,114 +400,90 @@ function StoreRow({ store }: { store: LifeScoreStore }) {
       </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <span>
+          걸어서 <strong className="font-semibold text-foreground">{store.walkMinutes}분</strong>
+        </span>
+        <span>
           등급 <strong className="font-semibold text-foreground">{store.grade}</strong>
         </span>
         <span>
+          기본 점수 <strong className="font-semibold text-foreground">{store.baseScore}점</strong>
+        </span>
+        <span>
           산출 점수{" "}
-          <strong className="font-semibold text-foreground">
-            {formatScore(store.calculatedScore)}점
-          </strong>
+          <strong className="font-semibold text-foreground">{store.calculatedScore}점</strong>
         </span>
       </div>
     </div>
   );
 }
 
-function LifeScoreMap({
+function FacilityMapImage({
   apartmentName,
-  centerLat,
-  centerLng,
-  stores,
+  address,
+  lat,
+  lng,
+  wasPreloaded,
 }: {
   apartmentName: string;
-  centerLat: number;
-  centerLng: number;
-  stores: { key: LifeScoreCategoryKey; store: LifeScoreStore }[];
+  address: string;
+  lat: number;
+  lng: number;
+  wasPreloaded: boolean;
 }) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  const mapImageUrl = buildApartmentFacilityMapUrl({
+    apartmentName,
+    address,
+    lat,
+    lng,
+    width: 640,
+    height: 480,
+  });
+  const [imageState, setImageState] = useState<"loading" | "loaded" | "error">(() =>
+    wasPreloaded || isApartmentFacilityMapPreloaded(mapImageUrl) ? "loaded" : "loading",
+  );
+
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image?.complete) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      setImageState(image.naturalWidth > 0 ? "loaded" : "error");
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [mapImageUrl]);
+
   return (
     <section id="life-score-map" className="mt-8">
-      <h2 className="text-[18px] font-bold tracking-tight">주변 매장 지도</h2>
+      <h2 className="text-[18px] font-bold tracking-tight">주변 시설 지도</h2>
       <p className="mt-1 text-[12px] text-muted-foreground">
-        마커 색상은 아파트에서 매장까지의 거리를 나타내요.
+        아파트와 가까운 대표 시설을 실제 지도에서 확인해보세요.
       </p>
-      <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-        <Legend color="bg-primary" label="300m 이하" />
-        <Legend color="bg-amber-400" label="301~500m" />
-        <Legend color="bg-red-500" label="501~1,000m" />
-        <Legend color="bg-gray-400" label="1,000m 초과" />
-      </div>
-
-      <div className="mt-4 relative aspect-square overflow-hidden rounded-3xl border border-border bg-muted/50">
-        <div
-          className="absolute inset-0 opacity-40"
-          style={{
-            backgroundImage:
-              "linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)",
-            backgroundSize: "32px 32px",
-          }}
-        />
-        {[84, 50, 26].map((size) => (
-          <div
-            key={size}
-            className="absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/20"
-            style={{ width: `${size}%` }}
-          />
-        ))}
-        <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-          <div className="h-4 w-4 rounded-full bg-foreground ring-4 ring-foreground/15" />
-          <div className="mt-1.5 max-w-32 truncate rounded-full border border-border bg-card px-2 py-0.5 text-[9px] font-bold">
-            {apartmentName}
-          </div>
-        </div>
-
-        {stores.map(({ key, store }) => {
-          const position = getMarkerPosition(centerLat, centerLng, store);
-          const tone = getDistanceTone(store.distanceMeter);
-          return (
-            <div
-              key={`${key}-${store.name}-${store.latitude}-${store.longitude}`}
-              className="group absolute z-10 -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${position.left}%`, top: `${position.top}%` }}
-              title={`${store.name} · ${store.distanceMeter}m`}
-              aria-label={`${store.name}, ${store.distanceMeter}m`}
-            >
-              <div className={`h-3 w-3 rounded-full ring-4 ${tone.dot}`} />
-              {store.isRepresentative && (
-                <div className="pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full border border-border bg-card px-2 py-1 text-[9px] font-semibold shadow-sm group-hover:block">
-                  {store.name}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {stores.length === 0 && (
-          <div className="absolute inset-x-4 bottom-5 rounded-2xl bg-card/90 px-4 py-3 text-center text-[12px] text-muted-foreground">
-            반경 내 검색된 매장이 없습니다.
+      <div className="mt-4 relative aspect-[4/3] overflow-hidden rounded-3xl border border-border bg-muted/50">
+        {imageState === "loading" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[12px] text-muted-foreground">
+            <Loader2 size={20} className="animate-spin text-primary" />
+            지도를 불러오고 있어요.
           </div>
         )}
+        {imageState === "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+            <MapPin size={24} className="text-muted-foreground" />
+            <p className="mt-3 text-[13px] font-semibold">주변 시설 지도를 불러오지 못했어요.</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">잠시 후 다시 확인해주세요.</p>
+          </div>
+        )}
+        <img
+          ref={imageRef}
+          src={mapImageUrl}
+          alt={`${apartmentName} 주변 시설 지도`}
+          className={`h-full w-full object-cover transition-opacity ${
+            imageState === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+          onLoad={() => setImageState("loaded")}
+          onError={() => setImageState("error")}
+        />
       </div>
     </section>
-  );
-}
-
-function getMarkerPosition(centerLat: number, centerLng: number, store: LifeScoreStore) {
-  const metersPerLongitudeDegree = 111_320 * Math.cos((centerLat * Math.PI) / 180);
-  const xMeters = (store.longitude - centerLng) * metersPerLongitudeDegree;
-  const yMeters = (store.latitude - centerLat) * 111_320;
-  const markerRadius = 42;
-  const clamp = (value: number) => Math.max(-1, Math.min(1, value));
-  return {
-    left: 50 + clamp(xMeters / DEFAULT_LIFE_SCORE_RADIUS_METER) * markerRadius,
-    top: 50 - clamp(yMeters / DEFAULT_LIFE_SCORE_RADIUS_METER) * markerRadius,
-  };
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={`h-2 w-2 rounded-full ${color}`} />
-      {label}
-    </span>
   );
 }
